@@ -15,6 +15,8 @@ import {
   functionDeclarationCommon,
   classMethodOrDeclareMethodCommon,
 } from "./core";
+import is from "../validators/is";
+import { validateChild } from "../validators/validate";
 
 const bool = assertValueType("boolean");
 
@@ -335,12 +337,38 @@ defineType("TSLiteralType", {
   aliases: ["TSType", "TSBaseType"],
   visitor: ["literal"],
   fields: {
-    literal: validateType([
-      "NumericLiteral",
-      "StringLiteral",
-      "BooleanLiteral",
-      "BigIntLiteral",
-    ]),
+    literal: {
+      validate: (function () {
+        const types = [
+          "NumericLiteral",
+          "StringLiteral",
+          "BooleanLiteral",
+          "BigIntLiteral",
+        ];
+        const literal = assertNodeType(...types, "UnaryExpression");
+        const unary = function (node, key, val) {
+          if (val.type === "UnaryExpression" && val.operator === "-") {
+            const numberTypes = ["NumericLiteral", "BigIntLiteral"];
+            for (const type of numberTypes) {
+              if (is(type, val.argument)) {
+                validateChild(node, key, val.argument);
+                return;
+              }
+            }
+
+            throw new TypeError(
+              `Property ${key} of ${
+                node.type
+              } expected node to be of a type ${JSON.stringify(
+                types,
+              )} but instead got ${JSON.stringify(`-${val?.argument.type}`)}`,
+            );
+          }
+        };
+
+        return chain(unary, literal);
+      })(),
+    },
   },
 });
 
